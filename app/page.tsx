@@ -13,6 +13,7 @@ export default function Home() {
   const [gameLoaded, setGameLoaded] = useState(false);
   const [isLoadingGame, setIsLoadingGame] = useState(false);
   const [gifLoaded, setGifLoaded] = useState(false);
+  const [showControls, setShowControls] = useState(false);
 
   // Lazy load GIF after page is interactive (requestIdleCallback)
   useEffect(() => {
@@ -96,7 +97,11 @@ export default function Home() {
             posterUrl="/images/VN.png"
             fullScreen
             disableZoom
-            onReady={() => setIsLoadingGame(false)}
+            onReady={() => {
+              setIsLoadingGame(false);
+              setShowControls(true);
+              setTimeout(() => setShowControls(false), 5000);
+            }}
           />
         </div>
       )}
@@ -194,6 +199,51 @@ export default function Home() {
               </div>
 
               {/* Decorative elements removed for performance */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Game Controls Overlay */}
+      {showControls && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none animate-fade-in">
+          <div className="bg-black/80 p-6 rounded-2xl border border-white/20 backdrop-blur-md text-white text-center shadow-2xl">
+            <h3 className="text-xl font-bold mb-6 text-blue-400">Game Controls</h3>
+            <div className="grid grid-cols-2 gap-12 text-sm">
+              {/* Movement Controls */}
+              <div className="space-y-4">
+                <p className="font-semibold text-gray-300 uppercase tracking-wider text-xs">Movement</p>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex justify-center">
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">W</kbd>
+                  </div>
+                  <div className="flex justify-center gap-2">
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">A</kbd>
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">S</kbd>
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">D</kbd>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-center gap-3">
+                   <kbd className="px-4 py-1.5 bg-white/10 rounded-lg border border-white/20 font-bold text-sm">Shift</kbd>
+                   <span className="text-xs text-gray-400">Boost Speed</span>
+                </div>
+              </div>
+              
+              {/* Camera Controls */}
+              <div className="space-y-4">
+                <p className="font-semibold text-gray-300 uppercase tracking-wider text-xs">Camera</p>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex justify-center">
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">↑</kbd>
+                  </div>
+                  <div className="flex justify-center gap-2">
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">←</kbd>
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">↓</kbd>
+                    <kbd className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg border border-white/20 font-bold text-lg">→</kbd>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Rotate View</p>
+              </div>
             </div>
           </div>
         </div>
