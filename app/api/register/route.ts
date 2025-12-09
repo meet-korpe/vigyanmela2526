@@ -3,6 +3,9 @@ import { v2 as cloudinary } from "cloudinary";
 import { Resend } from "resend";
 import Dbconns from "@/dbconfig/dbconn";
 import Visitor from "@/models/visitor";
+import User from "@/models/registration";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME as string,
@@ -60,6 +63,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Please provide a valid age between 10 and 120" }, { status: 400 });
     }
 
+    // Check if user is authenticated via LinkedIn (session exists)
+    const session = await getServerSession(authOptions as any) as any;
+    const isLinkedInAuth = !!(session && session.user && session.user.email);
+
     // Check duplicates in visitors collection (we only store visitors)
     const existingVisitor = await Visitor.findOne({ $or: [{ email }, { contact }] });
     if (existingVisitor) {
@@ -71,6 +78,32 @@ export async function POST(request: NextRequest) {
       } else if (existingVisitor.contact === contact) {
         return NextResponse.json(
           { error: "A visitor with this contact number already exists" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Also check in User collection to prevent duplicates *from other users*
+    // If the current request is from an authenticated LinkedIn user, allow
+    // the visitor registration when the existing User record matches the
+    // signed-in user's email (so users can create a Visitor ticket with
+    // their LinkedIn email). Only block when the existing User belongs to
+    // a different person.
+    const existingUser = await User.findOne({ $or: [{ email }, { contact }] });
+    if (existingUser) {
+      const isSameSignedInUser = isLinkedInAuth && session?.user?.email && existingUser.email === session.user.email;
+      if (existingUser.email === email && !isSameSignedInUser) {
+        return NextResponse.json(
+          { error: "A user with this email already exists" },
+          { status: 409 }
+        );
+      }
+
+      // For contact numbers, allow when the existing user belongs to the
+      // same signed-in LinkedIn user; otherwise block duplicates.
+      if (existingUser.contact === contact && !isSameSignedInUser) {
+        return NextResponse.json(
+          { error: "A user with this contact number already exists" },
           { status: 409 }
         );
       }
@@ -122,6 +155,36 @@ export async function POST(request: NextRequest) {
 
     const savedVisitor = await visitor.save();
     console.log("[register] visitor saved id:", savedVisitor._id?.toString?.());
+
+    // If user authenticated via LinkedIn, also create a User record
+    // This allows them to appear in the User Management tab
+    let savedUser = null;
+    if (isLinkedInAuth) {
+      try {
+        const user = new User({
+          firstName,
+          lastName,
+          email,
+          contact,
+          age,
+          organization,
+          industry,
+          linkedin: linkedin || session?.user?.image || "", // Store LinkedIn profile or use session image
+          idCardUrl: "", // No ID card for LinkedIn users
+          idCardPublicId: "", // No ID card for LinkedIn users
+          isAdmin: false,
+          isSuperAdmin: false,
+          // No password - they can only sign in via LinkedIn
+        });
+
+        savedUser = await user.save();
+        console.log("[register] LinkedIn user also saved in User collection, id:", savedUser._id?.toString?.());
+      } catch (userError: any) {
+        console.error("[register] Failed to create User record for LinkedIn auth:", userError);
+        // Don't fail the whole registration if User creation fails
+        // The visitor record is already created
+      }
+    }
 
     // Build ticket card HTML, centered with border and VN logo
     const origin = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "")) || new URL(request.url).origin;
@@ -217,6 +280,8 @@ export async function POST(request: NextRequest) {
           idCardUrl: savedVisitor.idCardUrl || null,
           ticketCode: savedVisitor.ticketCode,
           ticketHtml,
+          userId: savedUser?._id || null, // Include user ID if created
+          linkedInAuth: isLinkedInAuth, // Flag to indicate auth method
         },
         email: emailStatus,
       },

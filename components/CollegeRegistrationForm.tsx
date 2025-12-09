@@ -520,7 +520,7 @@ export default function CollegeRegistrationForm() {
 					baseMessage += ". (Sign in again to share on LinkedIn.)";
 				} else {
 					try {
-						const hashtags = ["VigyanMela", "Innovation", "Science", ...segments]
+						const hashtags = ["Vigyanmela", "Vigyanmela4.0", "Vigyanmela25", "VigyanmelaChetnaCollage","Bandra", "ChetanaCollage", ...segments]
 							.map((s) => `#${String(s).replace(/[^A-Za-z0-9]/g, "")}`)
 							.filter(Boolean)
 							.join(" ");
@@ -591,7 +591,7 @@ export default function CollegeRegistrationForm() {
 
 		setShareLoading(true);
 		try {
-			const hashtags = ["VigyanMela", "Innovation", "Science", ...existingData.segments]
+			const hashtags = ["Vigyanmela", "Vigyanmela4.0", "Vigyanmela25", "VigyanmelaChetnaCollage","Bandra", "ChetanaCollage", ...existingData.segments]
 				.map((s) => `#${String(s).replace(/[^A-Za-z0-9]/g, "")}`)
 				.filter(Boolean)
 				.join(" ");
@@ -719,9 +719,9 @@ export default function CollegeRegistrationForm() {
 							</div>
 						</div>
 						<div className="mt-8 flex flex-col sm:flex-row gap-3">
-	                            {/* <button onClick={handleShareOnLinkedIn} disabled={shareLoading || isFetchingExisting || !existingData.projectImage} className="flex-1 px-4 py-2 bg-[#0a66c2] text-white rounded-md hover:opacity-90 transition disabled:opacity-60">
+	                            <button onClick={handleShareOnLinkedIn} disabled={shareLoading || isFetchingExisting || !existingData.projectImage} className="flex-1 px-4 py-2 bg-[#0a66c2] text-white rounded-md hover:opacity-90 transition disabled:opacity-60">
 	                                {shareLoading ? "Sharing..." : "Share on LinkedIn"}
-	                            </button> */}
+	                            </button>
 							<button onClick={handleStartEdit} className="flex-1 px-4 py-2 bg-linear-to-r from-cyan-500 to-blue-500 text-white rounded-md hover:opacity-90 transition">Edit Submission</button>
 							<button disabled={isFetchingExisting} onClick={() => handleRefresh()} className="flex-1 px-4 py-2 bg-transparent border border-neutral-700 text-neutral-200 rounded-md hover:bg-neutral-800 transition disabled:opacity-60">Refresh</button>
 							<a href="/" className="flex-1 px-4 py-2 text-center bg-transparent border border-neutral-700 text-neutral-200 rounded-md hover:bg-neutral-800 transition">Home</a>

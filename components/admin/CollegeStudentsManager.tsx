@@ -3,6 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import StarRating from "../reviews/StarRating";
 
+// Hook for ESC key handling
+function useEscapeKey(callback: () => void, enabled: boolean) {
+	useEffect(() => {
+		if (!enabled) return;
+		const handleEscape = (e: KeyboardEvent) => {
+			if (e.key === "Escape") callback();
+		};
+		document.addEventListener("keydown", handleEscape);
+		return () => document.removeEventListener("keydown", handleEscape);
+	}, [enabled, callback]);
+}
+
 type RegistrationStatus = "pending" | "approved" | "rejected";
 
 interface TeamMember {
@@ -64,6 +76,13 @@ export function CollegeStudentsManager() {
 	const [projectReviews, setProjectReviews] = useState<ProjectReview[]>([]);
 	const [loadingReviews, setLoadingReviews] = useState<boolean>(false);
 	const [togglingReview, setTogglingReview] = useState<string | null>(null);
+	const [selectedYear, setSelectedYear] = useState<string>("");
+	const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+	const [selectedSegment, setSelectedSegment] = useState<string>("");
+	const [selectedStatus, setSelectedStatus] = useState<RegistrationStatus | "">("");
+
+	// ESC key handler - must be called at top level
+	useEscapeKey(() => setSelectedTeam(null), !!selectedTeam);
 
 	const fetchTeams = async () => {
 		try {
@@ -211,30 +230,76 @@ export function CollegeStudentsManager() {
 
 	const filteredTeams = useMemo(() => {
 		const query = searchQuery.trim().toLowerCase();
-		if (!query) return teams;
-
+		
 		return teams.filter((team) => {
-			const matchesTeamName = team.teamName.toLowerCase().includes(query);
-			const matchesSummary = team.projectSummary.toLowerCase().includes(query);
-			const matchesSegments = team.segments.some((segment) =>
-				segment.toLowerCase().includes(query)
-			);
-			const matchesMember = team.teamMembers.some((member) =>
-				[
-					member.fullName,
-					member.email,
-					member.rollNumber,
-					member.department,
-                    member.linkedinProfile || "",
-				]
-					.join(" ")
-					.toLowerCase()
-					.includes(query)
-			);
+			// Text search
+			let matchesSearch = true;
+			if (query) {
+				const matchesTeamName = team.teamName.toLowerCase().includes(query);
+				const matchesSummary = team.projectSummary.toLowerCase().includes(query);
+				const matchesSegments = team.segments.some((segment) =>
+					segment.toLowerCase().includes(query)
+				);
+				const matchesMember = team.teamMembers.some((member) =>
+					[
+						member.fullName,
+						member.email,
+						member.rollNumber,
+						member.department,
+                        member.linkedinProfile || "",
+					]
+						.join(" ")
+						.toLowerCase()
+						.includes(query)
+				);
 
-			return matchesTeamName || matchesSummary || matchesSegments || matchesMember;
+				matchesSearch = matchesTeamName || matchesSummary || matchesSegments || matchesMember;
+			}
+
+			// Filter by segment
+			const matchesSegmentFilter = !selectedSegment || team.segments.includes(selectedSegment);
+
+			// Filter by year
+			const matchesYearFilter = !selectedYear || team.teamMembers.some(m => m.yearOfStudy === selectedYear);
+
+			// Filter by department
+			const matchesDepartmentFilter = !selectedDepartment || team.teamMembers.some(m => m.department === selectedDepartment);
+
+			// Filter by status
+			const matchesStatusFilter = !selectedStatus || (team.registrationStatus ?? "pending") === selectedStatus;
+
+			return matchesSearch && matchesSegmentFilter && matchesYearFilter && matchesDepartmentFilter && matchesStatusFilter;
 		});
-	}, [teams, searchQuery]);
+	}, [teams, searchQuery, selectedSegment, selectedYear, selectedDepartment, selectedStatus]);
+
+	// Get unique segments, years, and departments
+	const uniqueSegments = useMemo(() => {
+		const segments = new Set<string>();
+		teams.forEach(team => {
+			team.segments.forEach(segment => segments.add(segment));
+		});
+		return Array.from(segments).sort();
+	}, [teams]);
+
+	const uniqueYears = useMemo(() => {
+		const years = new Set<string>();
+		teams.forEach(team => {
+			team.teamMembers.forEach(member => {
+				if (member.yearOfStudy) years.add(member.yearOfStudy);
+			});
+		});
+		return Array.from(years).sort();
+	}, [teams]);
+
+	const uniqueDepartments = useMemo(() => {
+		const departments = new Set<string>();
+		teams.forEach(team => {
+			team.teamMembers.forEach(member => {
+				if (member.department) departments.add(member.department);
+			});
+		});
+		return Array.from(departments).sort();
+	}, [teams]);
 
 	const statusCounts = useMemo(() => {
 		return filteredTeams.reduce(
@@ -389,14 +454,17 @@ export function CollegeStudentsManager() {
 	if (isLoading) {
 		return (
 			<div className="flex justify-center items-center h-64">
-				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500" />
+				<div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 shadow-xl">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto" />
+					<p className="text-white/70 mt-4 text-sm">Loading teams...</p>
+				</div>
 			</div>
 		);
 	}
 
 	if (error) {
 		return (
-			<div className="bg-red-500/10 border border-red-500 text-red-200 px-4 py-3 rounded-lg">
+			<div className="bg-red-500/20 backdrop-blur-sm border border-red-400/50 text-red-200 px-4 py-3 rounded-xl">
 				Error: {error}
 			</div>
 		);
@@ -404,42 +472,78 @@ export function CollegeStudentsManager() {
 
 	return (
 		<div className="space-y-6">
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-					<p className="text-sm text-gray-400">Total Teams</p>
-					<p className="text-3xl font-semibold text-white mt-2">{teams.length}</p>
-				</div>
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-					<p className="text-sm text-gray-400">Pending Review</p>
-					<p className="text-3xl font-semibold text-yellow-300 mt-2">
-						{statusCounts.pending}
-					</p>
-				</div>
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-					<p className="text-sm text-gray-400">Approved</p>
-					<p className="text-3xl font-semibold text-green-300 mt-2">
-						{statusCounts.approved}
-					</p>
-				</div>
-				<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-					<p className="text-sm text-gray-400">Rejected</p>
-					<p className="text-3xl font-semibold text-red-300 mt-2">
-						{statusCounts.rejected}
-					</p>
-				</div>
+		<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+			<div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 cursor-pointer" onClick={() => setSelectedStatus(selectedStatus === "" ? "" : "")}>
+				<p className="text-sm text-white/70">Total Teams</p>
+				<p className="text-4xl font-bold text-white mt-2 drop-shadow-lg">{teams.length}</p>
 			</div>
-
-			<div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-				<input
-					value={searchQuery}
-					onChange={(event) => setSearchQuery(event.target.value)}
-					placeholder="Search by team name, segment, or member details"
-					className="w-full px-4 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-500 focus:outline-none"
-				/>
-				<div className="mt-4 flex flex-wrap gap-3">
+			<div className={`bg-white/10 backdrop-blur-md border rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer ${selectedStatus === "pending" ? "border-yellow-400/50 shadow-yellow-500/20" : "border-white/20 hover:shadow-yellow-500/20"}`} onClick={() => setSelectedStatus(selectedStatus === "pending" ? "" : "pending")}>
+				<p className="text-sm text-white/70">Pending Review</p>
+				<p className="text-4xl font-bold text-yellow-400 mt-2 drop-shadow-lg">
+					{statusCounts.pending}
+				</p>
+			</div>
+			<div className={`bg-white/10 backdrop-blur-md border rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer ${selectedStatus === "approved" ? "border-green-400/50 shadow-green-500/20" : "border-white/20 hover:shadow-green-500/20"}`} onClick={() => setSelectedStatus(selectedStatus === "approved" ? "" : "approved")}>
+				<p className="text-sm text-white/70">Approved</p>
+				<p className="text-4xl font-bold text-green-400 mt-2 drop-shadow-lg">
+					{statusCounts.approved}
+				</p>
+			</div>
+			<div className={`bg-white/10 backdrop-blur-md border rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer ${selectedStatus === "rejected" ? "border-red-400/50 shadow-red-500/20" : "border-white/20 hover:shadow-red-500/20"}`} onClick={() => setSelectedStatus(selectedStatus === "rejected" ? "" : "rejected")}>
+				<p className="text-sm text-white/70">Rejected</p>
+				<p className="text-4xl font-bold text-red-400 mt-2 drop-shadow-lg">
+					{statusCounts.rejected}
+				</p>
+			</div>
+		</div>			<div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-xl">
+				<div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+					<input
+						value={searchQuery}
+						onChange={(event) => setSearchQuery(event.target.value)}
+						placeholder="Search teams or members..."
+						className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl border border-white/20 focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 placeholder:text-white/50 transition-all text-sm"
+					/>
+					<select
+						value={selectedSegment}
+						onChange={(e) => setSelectedSegment(e.target.value)}
+						className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl border border-white/20 focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 transition-all text-sm appearance-none cursor-pointer [&>option]:bg-neutral-900 [&>option]:text-white"
+					>
+						<option value="">All Segments</option>
+						{uniqueSegments.map((segment) => (
+							<option key={segment} value={segment}>
+								{segment}
+							</option>
+						))}
+					</select>
+					<select
+						value={selectedYear}
+						onChange={(e) => setSelectedYear(e.target.value)}
+						className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl border border-white/20 focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 transition-all text-sm appearance-none cursor-pointer [&>option]:bg-neutral-900 [&>option]:text-white"
+					>
+						<option value="">All Years</option>
+						{uniqueYears.map((year) => (
+							<option key={year} value={year}>
+								{year}
+							</option>
+						))}
+					</select>
+					<select
+						value={selectedDepartment}
+						onChange={(e) => setSelectedDepartment(e.target.value)}
+						className="px-4 py-2.5 bg-white/10 backdrop-blur-sm text-white rounded-xl border border-white/20 focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 transition-all text-sm appearance-none cursor-pointer [&>option]:bg-neutral-900 [&>option]:text-white"
+					>
+						<option value="">All Departments</option>
+						{uniqueDepartments.map((dept) => (
+							<option key={dept} value={dept}>
+								{dept}
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="flex flex-wrap gap-3">
 					<button
 						onClick={fetchTeams}
-						className="px-4 py-2 rounded-lg bg-cyan-600 text-white text-sm hover:bg-cyan-500 transition"
+						className="px-4 py-2.5 rounded-xl bg-cyan-500/20 backdrop-blur-sm text-white border border-cyan-400/50 text-sm hover:bg-cyan-500 hover:border-cyan-500 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300"
 						disabled={isLoading}
 					>
 						Refresh
@@ -447,98 +551,118 @@ export function CollegeStudentsManager() {
 					<button
 						onClick={handleExport}
 						disabled={isExporting}
-						className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-500 transition disabled:opacity-50"
+						className="px-4 py-2.5 rounded-xl bg-green-500/20 backdrop-blur-sm text-white border border-green-400/50 text-sm hover:bg-green-500 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/50 transition-all duration-300 disabled:opacity-50"
 					>
 						{isExporting ? "Exporting..." : "Download Excel"}
 					</button>
+					{(selectedSegment || selectedYear || selectedDepartment || searchQuery || selectedStatus) && (
+						<button
+							onClick={() => {
+								setSearchQuery("");
+								setSelectedSegment("");
+								setSelectedYear("");
+								setSelectedDepartment("");
+								setSelectedStatus("");
+							}}
+							className="px-4 py-2.5 rounded-xl bg-red-500/20 backdrop-blur-sm text-white border border-red-400/50 text-sm hover:bg-red-500 hover:border-red-500 hover:shadow-lg hover:shadow-red-500/50 transition-all duration-300"
+						>
+							Clear Filters
+						</button>
+					)}
 				</div>
 			</div>
 
-			<div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
-				<div className="overflow-x-auto">
-					<table className="w-full text-sm text-left">
-						<thead className="bg-zinc-800 uppercase text-xs text-gray-400">
-							<tr>
-								<th className="px-6 py-3">Team / Summary</th>
-								<th className="px-6 py-3">Segments</th>
-								<th className="px-6 py-3">Slot ID</th>
-								<th className="px-6 py-3">Room No</th>
-								<th className="px-6 py-3">Members (Details)</th>
-								<th className="px-6 py-3">Status</th>
-								<th className="px-6 py-3">Actions</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-zinc-800">
-							{filteredTeams.length === 0 ? (
-								<tr>
-									<td colSpan={7} className="px-6 py-10 text-center text-gray-400">
-										{searchQuery
-											? "No teams match your search criteria."
-											: "No college teams have registered yet."}
-									</td>
-								</tr>
-							) : (
-								filteredTeams.map((team) => (
-									<tr key={team._id} className="hover:bg-zinc-800/40 transition">
-										<td className="px-6 py-4">
-											<div className="space-y-1">
-												<p className="text-white font-medium">{team.teamName}</p>
-												<p className="text-gray-400 text-xs whitespace-pre-wrap">
-													{team.projectSummary || "No summary provided."}
-												</p>
-											</div>
-										</td>
-										<td className="px-6 py-4">
-											<div className="flex flex-wrap gap-1">
-												{team.segments.map((segment) => (
-													<span
-														key={segment}
-														className="px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-200"
-													>
-														{segment}
-													</span>
-												))}
-											</div>
-										</td>
-										<td className="px-6 py-4">
-											<div className="flex flex-col gap-1">
-												<div className="flex items-center gap-1">
-													<input
-														type="text"
-														value={editingSlotRoom[team._id]?.slotId !== undefined ? editingSlotRoom[team._id].slotId : (team.slotId ?? "")}
-														onChange={(e) => {
-															const nextValue = e.target.value;
-															setEditingSlotRoom((prev) => ({
-																...prev,
-																[team._id]: {
-																	slotId: nextValue,
-																	roomNo:
-																		prev[team._id]?.roomNo !== undefined
-																			? prev[team._id].roomNo
-																		: (team.roomNo ?? ""),
-																},
-															}));
-															setSlotValidationErrors((prevErrors) => {
-																const duplicateOwner = findDuplicateSlotOwner(team._id, nextValue);
-																if (duplicateOwner) {
-																	return {
-																		...prevErrors,
-																		[team._id]: `Slot ID already assigned to ${duplicateOwner.teamName}.`,
-																	};
-																}
-																if (!prevErrors[team._id]) {
-																	return prevErrors;
-																}
-																const nextErrors = { ...prevErrors };
-																delete nextErrors[team._id];
-																return nextErrors;
-															});
-														}}
+			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+				{filteredTeams.length === 0 ? (
+					<div className="col-span-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center text-white/70 shadow-xl">
+						{searchQuery
+							? "No teams match your search criteria."
+							: "No college teams have registered yet."}
+					</div>
+				) : (
+					filteredTeams.map((team) => (
+						<div
+							key={team._id}
+							className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl overflow-hidden hover:border-cyan-400/50 hover:shadow-xl hover:shadow-cyan-500/20 transition-all duration-300 flex flex-col"
+						>
+							{/* Card Header */}
+							<div className="p-5 border-b border-white/10 bg-linear-to-br from-white/5 to-white/10">
+								<div className="flex items-start justify-between gap-3 mb-3">
+									<h3 className="text-white font-semibold text-lg leading-tight flex-1">
+										{team.teamName}
+									</h3>
+									<span
+										className={`px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap ${
+											STATUS_STYLES[team.registrationStatus ?? "pending"]
+										}`}
+									>
+										{team.registrationStatus ?? "pending"}
+									</span>
+								</div>
+								<p className="text-white/70 text-sm line-clamp-3">
+									{team.projectSummary || "No summary provided."}
+								</p>
+							</div>
+
+							{/* Card Body */}
+							<div className="p-5 flex-1 space-y-4">
+								{/* Segments */}
+								<div>
+									<p className="text-xs text-white/60 mb-2 font-medium">SEGMENTS</p>
+									<div className="flex flex-wrap gap-1.5">
+										{team.segments.map((segment) => (
+											<span
+												key={segment}
+												className="px-2.5 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
+											>
+												{segment}
+											</span>
+										))}
+									</div>
+								</div>
+
+								{/* Slot & Room */}
+								<div className="grid grid-cols-2 gap-3">
+									<div>
+										<p className="text-xs text-white/60 mb-1.5 font-medium">SLOT ID</p>
+										<div className="flex flex-col gap-1">
+											<div className="flex items-center gap-1">
+												<input
+													type="text"
+													value={editingSlotRoom[team._id]?.slotId !== undefined ? editingSlotRoom[team._id].slotId : (team.slotId ?? "")}
+													onChange={(e) => {
+														const nextValue = e.target.value;
+														setEditingSlotRoom((prev) => ({
+															...prev,
+															[team._id]: {
+																slotId: nextValue,
+																roomNo:
+																	prev[team._id]?.roomNo !== undefined
+																		? prev[team._id].roomNo
+																	: (team.roomNo ?? ""),
+															},
+														}));
+														setSlotValidationErrors((prevErrors) => {
+															const duplicateOwner = findDuplicateSlotOwner(team._id, nextValue);
+															if (duplicateOwner) {
+																return {
+																	...prevErrors,
+																	[team._id]: `Already assigned to ${duplicateOwner.teamName}.`,
+																};
+															}
+															if (!prevErrors[team._id]) {
+																return prevErrors;
+															}
+															const nextErrors = { ...prevErrors };
+															delete nextErrors[team._id];
+															return nextErrors;
+														});
+													}}
 														placeholder="e.g. S001"
-														className={`w-24 px-2 py-1 text-sm bg-zinc-800 border rounded text-white placeholder-gray-500 focus:outline-none ${
+														className={`w-full px-2.5 py-1.5 text-sm bg-white/10 backdrop-blur-sm border rounded-lg text-white placeholder-white/40 focus:outline-none transition-all ${
 															slotValidationErrors[team._id]
-																? "border-red-500 focus:border-red-400"
-																: "border-zinc-700 focus:border-cyan-500"
+																? "border-red-400/50 focus:border-red-400"
+																: "border-white/20 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/50"
 														}`}
 														maxLength={10}
 													/>
@@ -546,312 +670,359 @@ export function CollegeStudentsManager() {
 														<button
 															onClick={() => handleSlotRoomUpdate(team._id)}
 															disabled={savingSlotRoom === team._id || Boolean(slotValidationErrors[team._id])}
-															className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+															className="px-2.5 py-1.5 text-sm bg-green-500/20 backdrop-blur-sm text-white border border-green-400/50 rounded-lg hover:bg-green-500 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/50 disabled:opacity-50 transition-all duration-300"
 														>
-															{savingSlotRoom === team._id ? "..." : "✓"}
-														</button>
-													)}
-												</div>
-												{slotValidationErrors[team._id] && (
-													<p className="text-xs text-red-400">
-														{slotValidationErrors[team._id]}
-													</p>
+														{savingSlotRoom === team._id ? "..." : "✓"}
+													</button>
 												)}
 											</div>
-										</td>
-										<td className="px-6 py-4">
-											<input
-												type="text"
-												value={editingSlotRoom[team._id]?.roomNo !== undefined ? editingSlotRoom[team._id].roomNo : (team.roomNo ?? "")}
-												onChange={(e) => setEditingSlotRoom(prev => ({
-													...prev,
-													[team._id]: {
-														slotId: prev[team._id]?.slotId !== undefined ? prev[team._id].slotId : (team.slotId ?? ""),
-														roomNo: e.target.value
-													}
-												}))}
-												placeholder="e.g. R101"
-												className="w-24 px-2 py-1 text-sm bg-zinc-800 border border-zinc-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
-												maxLength={10}
-											/>
-										</td>
-										<td className="px-6 py-4 text-gray-200">
-											<div className="flex flex-col gap-1">
-												{team.teamMembers.map((m, idx) => (
-													<div key={m.email + idx} className="text-xs">
-														<span className="text-cyan-300 font-medium">{idx === 0 ? "Leader" : `Member ${idx + 1}`}:</span>{" "}
-														<span className="text-white">{m.fullName}</span>{" "}
-														<span className="text-gray-400">({m.email})</span>
-														{m.linkedinProfile ? (
-															<>
-																{" "}
-																<a
-																	href={m.linkedinProfile}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="text-blue-300 underline"
-																	title="Open LinkedIn profile"
-																>
-																	LinkedIn
-																</a>
-															</>
-														) : null}
-													</div>
-												))}
-											</div>
-										</td>
-										<td className="px-6 py-4">
-											<span
-												className={`px-3 py-1 text-xs font-medium rounded-full ${
-													STATUS_STYLES[team.registrationStatus ?? "pending"]
-												}`}
-											>
-												{team.registrationStatus ?? "pending"}
-											</span>
-										</td>
-										<td className="px-6 py-4">
-											<div className="flex flex-wrap gap-2">
-												<button
-													onClick={() => setSelectedTeam(team)}
-													className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-												>
-													View
-												</button>
-												<button
-													onClick={() => handleStatusUpdate(team._id, "approved")}
-													disabled={isStatusUpdating}
-													className="px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
-												>
-													Approve
-												</button>
-												<button
-													onClick={() => handleStatusUpdate(team._id, "rejected")}
-													disabled={isStatusUpdating}
-													className="px-3 py-1 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition disabled:opacity-50"
-												>
-													Reject
-												</button>
-												<button
-													onClick={() => handleDelete(team._id)}
-													disabled={isDeleting && deletingId === team._id}
-													className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50"
-												>
-													{isDeleting && deletingId === team._id ? "..." : "Delete"}
-												</button>
-											</div>
-										</td>
-									</tr>
-								))
-							)}
-						</tbody>
-					</table>
-				</div>
-			</div>
-
-			{selectedTeam && (
-				<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4 py-10 overflow-y-auto">
-					<div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden">
-						<div className="flex items-start justify-between px-6 py-4 border-b border-zinc-800">
-							<div>
-								<h2 className="text-2xl font-semibold text-white">
-									{selectedTeam.teamName}
-								</h2>
-								<p className="text-sm text-gray-400">
-									Submitted on {" "}
-									{selectedTeam.submittedAt
-										? new Date(selectedTeam.submittedAt).toLocaleString()
-										: selectedTeam.createdAt
-										? new Date(selectedTeam.createdAt).toLocaleString()
-										: "Unknown"}
-								</p>
-							</div>
-							<button
-								onClick={() => setSelectedTeam(null)}
-								className="text-gray-400 hover:text-white text-2xl"
-							>
-								×
-							</button>
-						</div>
-
-						<div className="px-6 py-6 space-y-6">
-							<section className="space-y-3">
-								<h3 className="text-lg font-semibold text-white">Project Overview</h3>
-								<p className="text-sm text-gray-300 leading-relaxed">
-									{selectedTeam.projectSummary || "No project summary provided."}
-								</p>
-								<div className="flex flex-wrap gap-2">
-									{selectedTeam.segments.map((segment) => (
-										<span
-											key={segment}
-											className="px-3 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-200"
-										>
-											{segment}
-										</span>
-									))}
-								</div>
-							</section>
-
-							<section className="space-y-4">
-								<div className="flex items-center justify-between">
-									<h3 className="text-lg font-semibold text-white">Team Members</h3>
-									<span className="text-sm text-gray-400">
-										{selectedTeam.teamMembers.length} participant(s)
-									</span>
-								</div>
-								<div className="grid gap-4 md:grid-cols-2">
-									{selectedTeam.teamMembers.map((member, index) => (
-										<div
-											key={`${member.email}-${index}`}
-											className="border border-zinc-800 rounded-xl p-4 bg-zinc-900/70"
-										>
-											<div className="flex items-center justify-between mb-2">
-												<p className="text-white font-medium">
-													{member.fullName}
+											{slotValidationErrors[team._id] && (
+												<p className="text-xs text-red-400">
+													{slotValidationErrors[team._id]}
 												</p>
-												<span className="text-xs text-cyan-200">
-													{index === 0 ? "Team Leader" : `Member ${index + 1}`}
-												</span>
-											</div>
-											<ul className="text-xs text-gray-300 space-y-1">
-												<li>Department: {member.department}</li>
-												<li>Year: {member.yearOfStudy}</li>
-												<li>Email: {member.email}</li>
-												<li>Contact: {member.contactNumber}</li>
-												<li>Roll: {member.rollNumber}</li>
-												{member.linkedinProfile ? (
-													<li>
-														LinkedIn: {" "}
+											)}
+										</div>
+									</div>
+									<div>
+										<p className="text-xs text-white/60 mb-1.5 font-medium">ROOM NO</p>
+										<input
+											type="text"
+											value={editingSlotRoom[team._id]?.roomNo !== undefined ? editingSlotRoom[team._id].roomNo : (team.roomNo ?? "")}
+											onChange={(e) => setEditingSlotRoom(prev => ({
+												...prev,
+												[team._id]: {
+													slotId: prev[team._id]?.slotId !== undefined ? prev[team._id].slotId : (team.slotId ?? ""),
+													roomNo: e.target.value
+												}
+											}))}
+											placeholder="e.g. R101"
+											className="w-full px-2.5 py-1.5 text-sm bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/50 transition-all"
+											maxLength={10}
+										/>
+									</div>
+								</div>
+
+								{/* Team Members */}
+								<div>
+									<p className="text-xs text-white/60 mb-2 font-medium">TEAM MEMBERS ({team.teamMembers.length})</p>
+									<div className="space-y-2 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-white/5">
+										{team.teamMembers.map((m, idx) => (
+											<div key={m.email + idx} className="flex items-start gap-2 text-xs bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-2">
+												<div className="flex-1 min-w-0">
+													<div className="flex items-center gap-1.5 mb-0.5">
+														<span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+															idx === 0 ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-400/30' : 'bg-white/10 text-white/70 border border-white/20'
+														}`}>
+															{idx === 0 ? "LEADER" : `M${idx}`}
+														</span>
+														<span className="text-white font-medium truncate">{m.fullName}</span>
+													</div>
+													<p className="text-white/60 truncate">{m.email}</p>
+													{m.linkedinProfile && (
 														<a
-															href={member.linkedinProfile}
+															href={m.linkedinProfile}
 															target="_blank"
 															rel="noopener noreferrer"
-															className="text-blue-300 underline"
+															className="text-blue-400 hover:text-blue-300 underline mt-0.5 inline-block"
 														>
-															{member.linkedinProfile}
+															LinkedIn →
 														</a>
-													</li>
-												) : null}
-											</ul>
-										</div>
-									))}
+													)}
+												</div>
+											</div>
+										))}
+									</div>
 								</div>
-							</section>
+							</div>
 
-							<section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-								<div className="flex items-center gap-3">
-									<span className="text-sm text-gray-400">Status:</span>
-									<span
-										className={`px-3 py-1 text-xs font-medium rounded-full ${
-											STATUS_STYLES[selectedTeam.registrationStatus ?? "pending"]
-										}`}
-									>
-										{selectedTeam.registrationStatus ?? "pending"}
-									</span>
-								</div>
-								<div className="flex flex-wrap gap-2">
+							{/* Card Footer - Actions */}
+							<div className="p-4 border-t border-white/10 bg-white/5 backdrop-blur-sm">
+								<div className="grid grid-cols-2 gap-2">
 									<button
-										onClick={() => handleStatusUpdate(selectedTeam._id, "approved")}
+										onClick={() => setSelectedTeam(team)}
+										className="px-3 py-2 bg-blue-500/20 backdrop-blur-sm text-white border border-blue-400/50 text-sm rounded-xl hover:bg-blue-500 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/50 transition-all duration-300 font-medium"
+									>
+										View Details
+									</button>
+									<button
+										onClick={() => handleDelete(team._id)}
+										disabled={isDeleting && deletingId === team._id}
+										className="px-3 py-2 bg-red-500/20 backdrop-blur-sm text-white border border-red-400/50 text-sm rounded-xl hover:bg-red-500 hover:border-red-500 hover:shadow-lg hover:shadow-red-500/50 transition-all duration-300 disabled:opacity-50 font-medium"
+									>
+										{isDeleting && deletingId === team._id ? "..." : "Delete"}
+									</button>
+									<button
+										onClick={() => handleStatusUpdate(team._id, "approved")}
 										disabled={isStatusUpdating}
-										className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:opacity-50"
+										className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition disabled:opacity-50 font-medium"
 									>
 										Approve
 									</button>
 									<button
-										onClick={() => handleStatusUpdate(selectedTeam._id, "rejected")}
+										onClick={() => handleStatusUpdate(team._id, "rejected")}
 										disabled={isStatusUpdating}
-										className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition disabled:opacity-50"
+										className="px-3 py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 transition disabled:opacity-50 font-medium"
 									>
 										Reject
 									</button>
-									<button
-										onClick={() => handleDelete(selectedTeam._id)}
-										disabled={isDeleting}
-										className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50"
-									>
-										Delete
-									</button>
 								</div>
-							</section>
+							</div>
+						</div>
+					))
+				)}
+			</div>
 
-							{/* Reviews Section */}
-							<section className="space-y-4 border-t border-zinc-800 pt-6">
-								<div className="flex items-center justify-between">
-									<h3 className="text-lg font-semibold text-white">Project Reviews</h3>
-									<span className="text-sm text-gray-400">
-										{projectReviews.length} review(s)
+		{selectedTeam && (
+			<div 
+				className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 overflow-y-auto"
+				onClick={() => setSelectedTeam(null)}
+			>
+				<div 
+					className="bg-white/10 backdrop-blur-xl border-t sm:border border-white/20 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-5xl shadow-2xl overflow-hidden relative max-h-[95vh] sm:max-h-[90vh] flex flex-col"
+					onClick={(e) => e.stopPropagation()}
+				>
+					{/* Header */}
+					<div className="shrink-0 sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/20 px-4 sm:px-6 py-4 z-10">
+						<div className="flex items-start justify-between gap-4">
+							<div className="flex-1 min-w-0">
+								<h2 className="text-xl sm:text-2xl font-bold text-white truncate">
+									{selectedTeam.teamName}
+								</h2>
+								<div className="flex items-center gap-2 mt-1 flex-wrap">
+									<span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+										STATUS_STYLES[selectedTeam.registrationStatus ?? "pending"]
+									}`}>
+										{selectedTeam.registrationStatus ?? "pending"}
+									</span>
+									<span className="text-xs text-gray-400">
+										{selectedTeam.submittedAt
+											? new Date(selectedTeam.submittedAt).toLocaleDateString()
+											: selectedTeam.createdAt
+											? new Date(selectedTeam.createdAt).toLocaleDateString()
+											: "Unknown"}
 									</span>
 								</div>
-
-								{loadingReviews ? (
-									<div className="text-center py-8 text-gray-400">
-										Loading reviews...
-									</div>
-								) : projectReviews.length === 0 ? (
-									<div className="text-center py-8 text-gray-400">
-										No reviews yet for this project.
-									</div>
-								) : (
-									<div className="space-y-3">
-										{projectReviews.map((review) => (
-											<div
-												key={review._id}
-												className={`border rounded-xl p-4 ${
-													review.hidden 
-														? "border-red-800 bg-red-900/20" 
-														: "border-zinc-800 bg-zinc-900/70"
-												}`}
-											>
-												<div className="flex items-start justify-between mb-3">
-													<div>
-														<StarRating rating={review.rating} size="sm" />
-														<p className="mt-1 text-white font-medium">{review.reviewerName}</p>
-														<p className="text-xs text-gray-400">{review.reviewerEmail}</p>
-														<p className="text-xs text-gray-500 mt-1">
-															{new Date(review.createdAt).toLocaleDateString()} 
-															{review.createdAt !== review.updatedAt && " (edited)"}
-														</p>
-														{review.hidden && (
-															<span className="inline-block mt-2 px-2 py-1 text-xs rounded bg-red-500/20 text-red-200">
-																Hidden from public
-															</span>
-														)}
-													</div>
-													<div className="flex gap-2">
-														<button
-															onClick={() => handleToggleReviewVisibility(review._id, review.hidden)}
-															disabled={togglingReview === review._id}
-															className={`px-3 py-1 text-xs rounded transition ${
-																review.hidden
-																	? "bg-green-500/20 text-green-200 hover:bg-green-500/30"
-																	: "bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30"
-															} disabled:opacity-50`}
-														>
-															{togglingReview === review._id 
-																? "..." 
-																: review.hidden ? "Show" : "Hide"
-															}
-														</button>
-														<button
-															onClick={() => handleDeleteReview(review._id)}
-															className="px-3 py-1 text-xs rounded bg-red-500/20 text-red-200 hover:bg-red-500/30 transition"
-														>
-															Delete
-														</button>
-													</div>
-												</div>
-												<p className="text-sm text-gray-300 leading-relaxed">
-													{review.comment}
-												</p>
-											</div>
-										))}
-									</div>
-								)}
-							</section>
+							</div>
+							<button
+								onClick={() => setSelectedTeam(null)}
+								className="shrink-0 text-white/70 hover:text-white hover:bg-white/10 rounded-full w-10 h-10 flex items-center justify-center text-3xl transition-all"
+								aria-label="Close"
+							>
+								×
+							</button>
 						</div>
 					</div>
+
+					{/* Scrollable Content */}
+					<div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+						{/* Project Overview */}
+						<section className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-white/10 shadow-lg">
+							<h3 className="text-base sm:text-lg font-semibold text-white mb-3 flex items-center gap-2">
+								<span className="text-2xl">📋</span>
+								Project Overview
+							</h3>
+							<p className="text-sm sm:text-base text-white/80 leading-relaxed mb-4">
+								{selectedTeam.projectSummary || "No project summary provided."}
+							</p>
+							<div className="flex flex-wrap gap-2">
+								{selectedTeam.segments.map((segment) => (
+									<span
+										key={segment}
+										className="px-3 py-1.5 text-xs font-medium rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
+									>
+										{segment}
+									</span>
+								))}
+							</div>
+						</section>
+
+						{/* Team Members */}
+						<section className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-white/10 shadow-lg">
+							<div className="flex items-center justify-between mb-4">
+								<h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+									<span className="text-2xl">👥</span>
+									Team Members
+								</h3>
+								<span className="text-xs sm:text-sm px-3 py-1 bg-blue-500/20 text-blue-200 rounded-full font-medium">
+									{selectedTeam.teamMembers.length} members
+								</span>
+							</div>
+							<div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+								{selectedTeam.teamMembers.map((member, index) => (
+									<div
+										key={`${member.email}-${index}`}
+										className="border border-white/10 rounded-xl p-4 bg-white/5 hover:border-cyan-400/50 hover:bg-white/10 transition-all"
+									>
+										<div className="flex items-start justify-between mb-3 gap-2">
+											<p className="text-white font-semibold text-sm sm:text-base flex-1 min-w-0">
+												{member.fullName}
+											</p>
+											<span className={`shrink-0 text-xs px-2 py-1 rounded-full ${
+												index === 0 
+													? "bg-yellow-500/20 text-yellow-200 border border-yellow-400/30" 
+													: "bg-blue-500/20 text-blue-200 border border-blue-400/30"
+											}`}>
+												{index === 0 ? "👑 Leader" : `#${index + 1}`}
+											</span>
+										</div>
+										<div className="space-y-2 text-xs sm:text-sm text-white/80">
+											<div className="flex items-center gap-2">
+												<span className="text-white/50 w-20 shrink-0">Dept:</span>
+												<span className="font-medium">{member.department}</span>
+											</div>
+											<div className="flex items-center gap-2">
+												<span className="text-white/50 w-20 shrink-0">Year:</span>
+												<span className="text-white truncate">{member.yearOfStudy}</span>
+											</div>
+											<div className="flex items-center gap-2">
+												<span className="text-white/50 w-20 shrink-0">Roll:</span>
+												<span className="text-white truncate">{member.rollNumber}</span>
+											</div>
+											<div className="flex items-center gap-2">
+												<span className="text-white/50 w-20 shrink-0">Email:</span>
+												<a href={`mailto:${member.email}`} className="text-blue-400 hover:text-blue-300 break-all font-medium">
+													{member.email}
+												</a>
+											</div>
+										<div className="flex items-center gap-2">
+											<span className="text-white/50 w-20 shrink-0">Phone:</span>
+											<a href={`tel:${member.contactNumber}`} className="text-blue-400 hover:text-blue-300 font-medium">
+												{member.contactNumber}
+											</a>
+										</div>
+										{member.linkedinProfile && (
+											<div className="flex items-start gap-2 pt-2 border-t border-white/10">
+												<span className="text-white/50 w-20 shrink-0">LinkedIn:</span>
+													<a
+														href={member.linkedinProfile}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="text-blue-400 hover:text-blue-300 underline break-all text-xs"
+													>
+														View Profile
+													</a>
+												</div>
+											)}
+										</div>
+									</div>
+								))}
+							</div>
+						</section>
+
+					{/* Action Buttons */}
+					<section className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-white/10 shadow-lg">
+						<h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2">
+							<span className="text-2xl">⚡</span>
+							Actions
+						</h3>
+						<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+							<button
+								onClick={() => handleStatusUpdate(selectedTeam._id, "approved")}
+								disabled={isStatusUpdating}
+								className="px-4 py-3 bg-green-500/20 backdrop-blur-sm text-white border border-green-400/50 rounded-xl hover:bg-green-500 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/50 transition-all duration-300 disabled:opacity-50 font-medium text-sm sm:text-base"
+							>
+								✅ Approve
+							</button>
+							<button
+								onClick={() => handleStatusUpdate(selectedTeam._id, "rejected")}
+								disabled={isStatusUpdating}
+								className="px-4 py-3 bg-yellow-500/20 backdrop-blur-sm text-white border border-yellow-400/50 rounded-xl hover:bg-yellow-500 hover:border-yellow-500 hover:shadow-lg hover:shadow-yellow-500/50 transition-all duration-300 disabled:opacity-50 font-medium text-sm sm:text-base"
+							>
+								⚠️ Reject
+							</button>
+							<button
+								onClick={() => handleDelete(selectedTeam._id)}
+								disabled={isDeleting}
+								className="px-4 py-3 bg-red-500/20 backdrop-blur-sm text-white border border-red-400/50 rounded-xl hover:bg-red-500 hover:border-red-500 hover:shadow-lg hover:shadow-red-500/50 transition-all duration-300 disabled:opacity-50 font-medium text-sm sm:text-base"
+							>
+								🗑️ Delete
+							</button>
+						</div>
+					</section>
+
+					{/* Reviews Section */}
+					<section className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-white/10 shadow-lg">
+						<div className="flex items-center justify-between mb-4">
+							<h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+								<span className="text-2xl">⭐</span>
+								Project Reviews
+							</h3>
+							<span className="text-xs sm:text-sm px-3 py-1 bg-purple-500/20 text-purple-200 rounded-full font-medium border border-purple-400/30">
+								{projectReviews.length} reviews
+							</span>
+						</div>
+
+						{loadingReviews ? (
+							<div className="text-center py-12 text-white/70">
+								<div className="animate-spin w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full mx-auto mb-3"></div>
+								Loading reviews...
+							</div>
+						) : projectReviews.length === 0 ? (
+							<div className="text-center py-12 text-white/70">
+								<div className="text-4xl mb-3">📝</div>
+								<p className="text-sm">No reviews yet for this project.</p>
+							</div>
+						) : (
+							<div className="space-y-3">
+								{projectReviews.map((review) => (
+									<div
+										key={review._id}
+										className={`border rounded-2xl p-4 ${
+											review.hidden 
+												? "border-red-400/50 bg-red-500/10 backdrop-blur-sm" 
+												: "border-white/10 bg-white/5 backdrop-blur-sm"
+										}`}
+									>
+										<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+											<div className="flex-1 min-w-0">
+												<StarRating rating={review.rating} size="sm" />
+												<p className="mt-2 text-white font-semibold text-sm sm:text-base">{review.reviewerName}</p>
+												<p className="text-xs text-white/60 truncate">{review.reviewerEmail}</p>
+												<p className="text-xs text-white/50 mt-1">
+													{new Date(review.createdAt).toLocaleDateString()} 
+													{review.createdAt !== review.updatedAt && " (edited)"}
+												</p>
+												{review.hidden && (
+													<span className="inline-block mt-2 px-2 py-1 text-xs rounded-full bg-red-500/30 text-red-200 border border-red-500/50">
+														🔒 Hidden from public
+													</span>
+												)}
+											</div>
+											<div className="flex gap-2 shrink-0">
+												<button
+													onClick={() => handleToggleReviewVisibility(review._id, review.hidden)}
+													disabled={togglingReview === review._id}
+													className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition font-medium ${
+														review.hidden
+															? "bg-green-500/20 text-green-200 hover:bg-green-500/30 border border-green-500/30"
+															: "bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30 border border-yellow-500/30"
+													} disabled:opacity-50`}
+												>
+													{togglingReview === review._id 
+														? "..." 
+														: review.hidden ? "👁️ Show" : "🙈 Hide"
+													}
+												</button>
+												<button
+													onClick={() => handleDeleteReview(review._id)}
+													className="px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-red-500/20 text-red-200 hover:bg-red-500/30 transition border border-red-500/30 font-medium"
+												>
+													🗑️
+												</button>
+											</div>
+										</div>
+										<p className="text-sm text-gray-300 leading-relaxed mt-3 border-t border-zinc-700/50 pt-3">
+											{review.comment}
+										</p>
+									</div>
+								))}
+							</div>
+						)}
+					</section>
 				</div>
-			)}
+			</div>
+		</div>
+		)}
 		</div>
 	);
 }
-
