@@ -10,22 +10,54 @@ export async function GET(request: Request) {
     const segment = searchParams.get("segment");
 
     // Build query - only show approved projects
-    const query: { registrationStatus: string; segments?: { $in: string[] } } = {
+    const matchStage: any = {
       registrationStatus: "approved",
     };
 
     if (segment) {
-      query.segments = { $in: [segment] };
+      matchStage.segments = { $in: [segment] };
     }
 
-    const projects = await CollegeStudent.find(query)
-      .select("teamName projectSummary projectImage segments slotId roomNo teamMembers uuid _id")
-      .sort({ submittedAt: -1 })
-      .lean();
+    const projects = await CollegeStudent.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "reviews",
+          let: { pid: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$projectId", "$$pid"] }, hidden: false } },
+            { $project: { rating: 1 } }
+          ],
+          as: "reviews"
+        }
+      },
+      {
+        $addFields: {
+          averageRating: { $avg: "$reviews.rating" },
+          totalReviews: { $size: "$reviews" }
+        }
+      },
+      {
+        $project: {
+          teamName: 1,
+          projectSummary: 1,
+          projectImage: 1,
+          segments: 1,
+          slotId: 1,
+          roomNo: 1,
+          teamMembers: 1,
+          uuid: 1,
+          _id: 1,
+          averageRating: { $ifNull: [{ $round: ["$averageRating", 1] }, 0] },
+          totalReviews: 1
+        }
+      },
+      { $sort: { submittedAt: -1 } }
+    ]);
 
     console.log('Projects API - Total found:', projects.length);
     if (projects.length > 0) {
-      console.log('First project slotId/roomNo:', projects[0].slotId, projects[0].roomNo);
+      console.log('First project stats:', projects[0].averageRating, projects[0].totalReviews);
     }
 
     return NextResponse.json({

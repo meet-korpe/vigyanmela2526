@@ -27,15 +27,36 @@ export default function StarRating({
     lg: "w-6 h-6",
   };
 
-  const handleClick = (starIndex: number) => {
+  const handleClick = (starIndex: number, event: React.MouseEvent<HTMLDivElement>) => {
     if (interactive && onRatingChange) {
-      onRatingChange(starIndex);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const isLeftHalf = x < rect.width / 2;
+      
+      // If clicking left half, set to half star (e.g., 1.5, 2.5)
+      // If clicking right half, set to full star (e.g., 2, 3)
+      const newRating = isLeftHalf ? starIndex - 0.5 : starIndex;
+      onRatingChange(newRating);
     }
   };
 
-  const handleMouseEnter = (starIndex: number) => {
+  const handleMouseEnter = (starIndex: number, event: React.MouseEvent<HTMLDivElement>) => {
     if (interactive) {
-      setHoverRating(starIndex);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const isLeftHalf = x < rect.width / 2;
+      const hoverValue = isLeftHalf ? starIndex - 0.5 : starIndex;
+      setHoverRating(hoverValue);
+    }
+  };
+
+  const handleMouseMove = (starIndex: number, event: React.MouseEvent<HTMLDivElement>) => {
+    if (interactive) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const isLeftHalf = x < rect.width / 2;
+      const hoverValue = isLeftHalf ? starIndex - 0.5 : starIndex;
+      setHoverRating(hoverValue);
     }
   };
 
@@ -67,10 +88,11 @@ export default function StarRating({
           <div
             key={starIndex}
             className={`relative ${sizeClasses[size]} ${
-              interactive ? "cursor-pointer" : ""
+              interactive ? "cursor-pointer transition-transform hover:scale-110" : ""
             }`}
-            onClick={() => handleClick(starIndex)}
-            onMouseEnter={() => handleMouseEnter(starIndex)}
+            onClick={(e) => handleClick(starIndex, e)}
+            onMouseEnter={(e) => handleMouseEnter(starIndex, e)}
+            onMouseMove={(e) => handleMouseMove(starIndex, e)}
             onMouseLeave={handleMouseLeave}
           >
             {fillType === "full" && (

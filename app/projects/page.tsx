@@ -25,16 +25,12 @@ interface Project {
   slotId?: string;
   roomNo?: string;
   teamMembers: TeamMember[];
-}
-
-interface ReviewStats {
-  averageRating: number;
-  totalReviews: number;
+  averageRating?: number;
+  totalReviews?: number;
 }
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [reviewStats, setReviewStats] = useState<Record<string, ReviewStats>>({});
   const [loading, setLoading] = useState(true);
   const [selectedSegment, setSelectedSegment] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -59,37 +55,17 @@ export default function ProjectsPage() {
         console.log('Fetched projects:', data.projects.map((p: Project) => ({ 
           name: p.teamName, 
           id: p._id, 
-          uuid: p.uuid 
+          uuid: p.uuid,
+          rating: p.averageRating,
+          reviews: p.totalReviews
         })));
         setProjects(data.projects);
-        
-        // Fetch review stats for all projects
-        fetchAllReviewStats(data.projects);
       }
     } catch (error) {
       console.error("Error fetching projects:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchAllReviewStats = async (projectsList: Project[]) => {
-    const stats: Record<string, ReviewStats> = {};
-    
-    await Promise.all(
-      projectsList.map(async (project) => {
-        try {
-          const response = await fetch(`/api/reviews/stats?projectId=${project._id}`);
-          const data = await response.json();
-          stats[project._id] = data;
-        } catch (error) {
-          console.error(`Error fetching stats for project ${project._id}:`, error);
-          stats[project._id] = { averageRating: 0, totalReviews: 0 };
-        }
-      })
-    );
-    
-    setReviewStats(stats);
   };
 
   const handleOpenReviews = (project: Project) => {
@@ -99,9 +75,9 @@ export default function ProjectsPage() {
 
   const handleCloseReviews = () => {
     setReviewPanelOpen(false);
-    // Refresh stats when panel closes (in case reviews were added/edited)
+    // Refresh projects when panel closes (in case reviews were added/edited)
     if (selectedProject) {
-      fetchAllReviewStats(projects);
+      fetchProjects();
     }
   };
 
@@ -272,25 +248,25 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Review Stats with Blend Effect */}
-                {reviewStats[project._id] && reviewStats[project._id].totalReviews > 0 && (
+                {project.totalReviews && project.totalReviews > 0 ? (
                   <div className="mt-4 pt-4 border-t">
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <div className="absolute inset-0 bg-linear-to-r from-yellow-400 to-orange-400 blur-md opacity-50"></div>
                         <div className="relative flex items-center gap-2 bg-white dark:bg-gray-900 rounded-lg px-3 py-1">
                           <StarRating
-                            rating={reviewStats[project._id].averageRating}
+                            rating={project.averageRating || 0}
                             size="sm"
                             showNumber
                           />
                         </div>
                       </div>
                       <span className="text-sm text-muted-foreground">
-                        ({reviewStats[project._id].totalReviews} {reviewStats[project._id].totalReviews === 1 ? 'review' : 'reviews'})
+                        ({project.totalReviews} {project.totalReviews === 1 ? 'review' : 'reviews'})
                       </span>
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* Team Members Preview */}
                 <div className="mt-4 pt-4 border-t">

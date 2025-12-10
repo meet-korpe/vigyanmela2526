@@ -27,10 +27,21 @@ export async function GET(request: NextRequest) {
           .select("teamName segments")
           .lean();
         
+        // Calculate average rating for this project
+        const projectStats = await Review.aggregate([
+          { $match: { projectId: review.projectId } },
+          { $group: { _id: null, averageRating: { $avg: "$rating" }, count: { $sum: 1 } } }
+        ]);
+
+        const averageRating = projectStats.length > 0 ? Math.round(projectStats[0].averageRating * 10) / 10 : 0;
+        const reviewCount = projectStats.length > 0 ? projectStats[0].count : 0;
+
         return {
           ...review,
           projectName: (project as any)?.teamName || "Unknown Project",
           projectSegments: (project as any)?.segments || [],
+          projectAverageRating: averageRating,
+          projectReviewCount: reviewCount,
         };
       })
     );

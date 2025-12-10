@@ -35,6 +35,7 @@ export function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>("users");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [totalReviewsCount, setTotalReviewsCount] = useState(0);
 
   const checkSuperAdmin = async () => {
     try {
@@ -43,6 +44,18 @@ export function AdminDashboard() {
       setIsSuperAdmin(data.adminData?.isSuperAdmin || false);
     } catch (error) {
       // ignore
+    }
+  };
+
+  const fetchReviewsCount = async () => {
+    try {
+      const response = await fetch("/api/admin/reviews");
+      const data = await response.json();
+      if (data.success) {
+        setTotalReviewsCount(data.reviews.length);
+      }
+    } catch (error) {
+      console.error("Error fetching reviews count:", error);
     }
   };
 
@@ -73,6 +86,7 @@ export function AdminDashboard() {
   useEffect(() => {
     fetchUsers();
     checkSuperAdmin();
+    fetchReviewsCount();
   }, []);
 
   const handleLogout = async () => {
@@ -199,13 +213,18 @@ export function AdminDashboard() {
           </button>
           <button
             onClick={() => setActiveTab("reviews")}
-            className={`px-6 py-3 font-medium transition-all duration-300 rounded-xl whitespace-nowrap ${
+            className={`px-6 py-3 font-medium transition-all duration-300 rounded-xl whitespace-nowrap flex items-center gap-2 ${
               activeTab === "reviews"
                 ? "bg-white/20 backdrop-blur-sm text-white shadow-lg shadow-blue-500/50 border border-white/30"
                 : "text-white/70 hover:text-white hover:bg-white/10"
             }`}
           >
-            ⭐ Reviews
+            <span>⭐ Reviews</span>
+            {totalReviewsCount > 0 && (
+              <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+                {totalReviewsCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab("visitors")}

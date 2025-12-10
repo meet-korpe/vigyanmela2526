@@ -41,6 +41,14 @@ interface CollegeTeam {
 	linkedinId?: string;
 	submittedAt?: string;
 	createdAt?: string;
+	averageRating?: number;
+	reviewCount?: number;
+	latestReviews?: {
+		reviewerName: string;
+		rating: number;
+		comment: string;
+		createdAt: string;
+	}[];
 }
 
 interface ProjectReview {
@@ -73,9 +81,6 @@ export function CollegeStudentsManager() {
 	const [editingSlotRoom, setEditingSlotRoom] = useState<{ [key: string]: { slotId: string; roomNo: string } }>({});
 	const [savingSlotRoom, setSavingSlotRoom] = useState<string | null>(null);
 	const [slotValidationErrors, setSlotValidationErrors] = useState<Record<string, string>>({});
-	const [projectReviews, setProjectReviews] = useState<ProjectReview[]>([]);
-	const [loadingReviews, setLoadingReviews] = useState<boolean>(false);
-	const [togglingReview, setTogglingReview] = useState<string | null>(null);
 	const [selectedYear, setSelectedYear] = useState<string>("");
 	const [selectedDepartment, setSelectedDepartment] = useState<string>("");
 	const [selectedSegment, setSelectedSegment] = useState<string>("");
@@ -105,83 +110,6 @@ export function CollegeStudentsManager() {
 	useEffect(() => {
 		fetchTeams();
 	}, []);
-
-	const fetchProjectReviews = async (projectId: string) => {
-		try {
-			setLoadingReviews(true);
-			const response = await fetch(`/api/admin/reviews/project/${projectId}`);
-			const data = await response.json();
-
-			if (data.success) {
-				setProjectReviews(data.reviews);
-			} else {
-				console.error("Failed to fetch reviews:", data.error);
-				setProjectReviews([]);
-			}
-		} catch (error) {
-			console.error("Error fetching reviews:", error);
-			setProjectReviews([]);
-		} finally {
-			setLoadingReviews(false);
-		}
-	};
-
-	const handleToggleReviewVisibility = async (reviewId: string, currentHidden: boolean) => {
-		try {
-			setTogglingReview(reviewId);
-			const response = await fetch(`/api/admin/reviews/${reviewId}`, {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ hidden: !currentHidden }),
-			});
-
-			const data = await response.json();
-
-			if (data.success) {
-				// Update local state
-				setProjectReviews(projectReviews.map(review => 
-					review._id === reviewId ? { ...review, hidden: !currentHidden } : review
-				));
-			} else {
-				alert(data.error || "Failed to update review visibility");
-			}
-		} catch (error) {
-			console.error("Error toggling review visibility:", error);
-			alert("An error occurred");
-		} finally {
-			setTogglingReview(null);
-		}
-	};
-
-	const handleDeleteReview = async (reviewId: string) => {
-		if (!confirm("Are you sure you want to delete this review?")) return;
-
-		try {
-			const response = await fetch(`/api/admin/reviews/${reviewId}`, {
-				method: "DELETE",
-			});
-
-			const data = await response.json();
-
-			if (data.success) {
-				setProjectReviews(projectReviews.filter(review => review._id !== reviewId));
-			} else {
-				alert(data.error || "Failed to delete review");
-			}
-		} catch (error) {
-			console.error("Error deleting review:", error);
-			alert("An error occurred while deleting the review");
-		}
-	};
-
-	// Fetch reviews when a team is selected
-	useEffect(() => {
-		if (selectedTeam) {
-			fetchProjectReviews(selectedTeam._id);
-		} else {
-			setProjectReviews([]);
-		}
-	}, [selectedTeam]);
 
 	const handleExport = async () => {
 		setIsExporting(true);
@@ -599,6 +527,12 @@ export function CollegeStudentsManager() {
 										{team.registrationStatus ?? "pending"}
 									</span>
 								</div>
+								<div className="flex items-center gap-2 mb-3">
+									<StarRating rating={team.averageRating || 0} size="sm" />
+									<span className="text-xs text-white/60">
+										({team.reviewCount || 0} reviews)
+									</span>
+								</div>
 								<p className="text-white/70 text-sm line-clamp-3">
 									{team.projectSummary || "No summary provided."}
 								</p>
@@ -636,42 +570,34 @@ export function CollegeStudentsManager() {
 															...prev,
 															[team._id]: {
 																slotId: nextValue,
-																roomNo:
-																	prev[team._id]?.roomNo !== undefined
-																		? prev[team._id].roomNo
-																	: (team.roomNo ?? ""),
+																roomNo: prev[team._id]?.roomNo !== undefined ? prev[team._id].roomNo : (team.roomNo ?? ""),
 															},
 														}));
 														setSlotValidationErrors((prevErrors) => {
 															const duplicateOwner = findDuplicateSlotOwner(team._id, nextValue);
 															if (duplicateOwner) {
-																return {
-																	...prevErrors,
-																	[team._id]: `Already assigned to ${duplicateOwner.teamName}.`,
-																};
+																return { ...prevErrors, [team._id]: `Already assigned to ${duplicateOwner.teamName}.` };
 															}
-															if (!prevErrors[team._id]) {
-																return prevErrors;
-															}
+															if (!prevErrors[team._id]) return prevErrors;
 															const nextErrors = { ...prevErrors };
 															delete nextErrors[team._id];
 															return nextErrors;
 														});
 													}}
-														placeholder="e.g. S001"
-														className={`w-full px-2.5 py-1.5 text-sm bg-white/10 backdrop-blur-sm border rounded-lg text-white placeholder-white/40 focus:outline-none transition-all ${
-															slotValidationErrors[team._id]
-																? "border-red-400/50 focus:border-red-400"
-																: "border-white/20 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/50"
-														}`}
-														maxLength={10}
-													/>
-													{editingSlotRoom[team._id] && (
-														<button
-															onClick={() => handleSlotRoomUpdate(team._id)}
-															disabled={savingSlotRoom === team._id || Boolean(slotValidationErrors[team._id])}
-															className="px-2.5 py-1.5 text-sm bg-green-500/20 backdrop-blur-sm text-white border border-green-400/50 rounded-lg hover:bg-green-500 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/50 disabled:opacity-50 transition-all duration-300"
-														>
+													placeholder="e.g. S001"
+													className={`w-full px-2.5 py-1.5 text-sm bg-white/10 backdrop-blur-sm border rounded-lg text-white placeholder-white/40 focus:outline-none transition-all ${
+														slotValidationErrors[team._id]
+															? "border-red-400/50 focus:border-red-400"
+															: "border-white/20 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/50"
+													}`}
+													maxLength={10}
+												/>
+												{editingSlotRoom[team._id] && (
+													<button
+														onClick={() => handleSlotRoomUpdate(team._id)}
+														disabled={savingSlotRoom === team._id || Boolean(slotValidationErrors[team._id])}
+														className="px-2.5 py-1.5 text-sm bg-green-500/20 backdrop-blur-sm text-white border border-green-400/50 rounded-lg hover:bg-green-500 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/50 disabled:opacity-50 transition-all duration-300"
+													>
 														{savingSlotRoom === team._id ? "..." : "✓"}
 													</button>
 												)}
@@ -758,13 +684,6 @@ export function CollegeStudentsManager() {
 									>
 										Approve
 									</button>
-									<button
-										onClick={() => handleStatusUpdate(team._id, "rejected")}
-										disabled={isStatusUpdating}
-										className="px-3 py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 transition disabled:opacity-50 font-medium"
-									>
-										Reject
-									</button>
 								</div>
 							</div>
 						</div>
@@ -772,15 +691,14 @@ export function CollegeStudentsManager() {
 				)}
 			</div>
 
-		{selectedTeam && (
-			<div 
-				className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 overflow-y-auto"
-				onClick={() => setSelectedTeam(null)}
-			>
-				<div 
-					className="bg-white/10 backdrop-blur-xl border-t sm:border border-white/20 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-5xl shadow-2xl overflow-hidden relative max-h-[95vh] sm:max-h-[90vh] flex flex-col"
-					onClick={(e) => e.stopPropagation()}
-				>
+			{/* Modal Overlay */}
+			{selectedTeam && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+					<div 
+						className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+						onClick={() => setSelectedTeam(null)}
+					/>
+					<div className="relative w-full max-w-4xl max-h-[90vh] bg-[#0f172a] rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden">
 					{/* Header */}
 					<div className="shrink-0 sticky top-0 bg-white/10 backdrop-blur-md border-b border-white/20 px-4 sm:px-6 py-4 z-10">
 						<div className="flex items-start justify-between gap-4">
@@ -788,8 +706,13 @@ export function CollegeStudentsManager() {
 								<h2 className="text-xl sm:text-2xl font-bold text-white truncate">
 									{selectedTeam.teamName}
 								</h2>
-								<div className="flex items-center gap-2 mt-1 flex-wrap">
-									<span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+								<div className="flex items-center gap-3 mt-2 flex-wrap">
+									<div className="flex items-center gap-2 bg-white/10 px-2 py-1 rounded-lg border border-white/10">
+										<StarRating rating={selectedTeam.averageRating || 0} size="md" />
+										<span className="text-lg font-bold text-white">{selectedTeam.averageRating || 0}</span>
+										<span className="text-xs text-white/60">({selectedTeam.reviewCount || 0} reviews)</span>
+									</div>
+									<span className={`px-2 py-1 text-xs font-medium rounded-full ${
 										STATUS_STYLES[selectedTeam.registrationStatus ?? "pending"]
 									}`}>
 										{selectedTeam.registrationStatus ?? "pending"}
@@ -938,86 +861,6 @@ export function CollegeStudentsManager() {
 								🗑️ Delete
 							</button>
 						</div>
-					</section>
-
-					{/* Reviews Section */}
-					<section className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-5 border border-white/10 shadow-lg">
-						<div className="flex items-center justify-between mb-4">
-							<h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
-								<span className="text-2xl">⭐</span>
-								Project Reviews
-							</h3>
-							<span className="text-xs sm:text-sm px-3 py-1 bg-purple-500/20 text-purple-200 rounded-full font-medium border border-purple-400/30">
-								{projectReviews.length} reviews
-							</span>
-						</div>
-
-						{loadingReviews ? (
-							<div className="text-center py-12 text-white/70">
-								<div className="animate-spin w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full mx-auto mb-3"></div>
-								Loading reviews...
-							</div>
-						) : projectReviews.length === 0 ? (
-							<div className="text-center py-12 text-white/70">
-								<div className="text-4xl mb-3">📝</div>
-								<p className="text-sm">No reviews yet for this project.</p>
-							</div>
-						) : (
-							<div className="space-y-3">
-								{projectReviews.map((review) => (
-									<div
-										key={review._id}
-										className={`border rounded-2xl p-4 ${
-											review.hidden 
-												? "border-red-400/50 bg-red-500/10 backdrop-blur-sm" 
-												: "border-white/10 bg-white/5 backdrop-blur-sm"
-										}`}
-									>
-										<div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
-											<div className="flex-1 min-w-0">
-												<StarRating rating={review.rating} size="sm" />
-												<p className="mt-2 text-white font-semibold text-sm sm:text-base">{review.reviewerName}</p>
-												<p className="text-xs text-white/60 truncate">{review.reviewerEmail}</p>
-												<p className="text-xs text-white/50 mt-1">
-													{new Date(review.createdAt).toLocaleDateString()} 
-													{review.createdAt !== review.updatedAt && " (edited)"}
-												</p>
-												{review.hidden && (
-													<span className="inline-block mt-2 px-2 py-1 text-xs rounded-full bg-red-500/30 text-red-200 border border-red-500/50">
-														🔒 Hidden from public
-													</span>
-												)}
-											</div>
-											<div className="flex gap-2 shrink-0">
-												<button
-													onClick={() => handleToggleReviewVisibility(review._id, review.hidden)}
-													disabled={togglingReview === review._id}
-													className={`px-3 py-1.5 text-xs sm:text-sm rounded-lg transition font-medium ${
-														review.hidden
-															? "bg-green-500/20 text-green-200 hover:bg-green-500/30 border border-green-500/30"
-															: "bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30 border border-yellow-500/30"
-													} disabled:opacity-50`}
-												>
-													{togglingReview === review._id 
-														? "..." 
-														: review.hidden ? "👁️ Show" : "🙈 Hide"
-													}
-												</button>
-												<button
-													onClick={() => handleDeleteReview(review._id)}
-													className="px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-red-500/20 text-red-200 hover:bg-red-500/30 transition border border-red-500/30 font-medium"
-												>
-													🗑️
-												</button>
-											</div>
-										</div>
-										<p className="text-sm text-gray-300 leading-relaxed mt-3 border-t border-zinc-700/50 pt-3">
-											{review.comment}
-										</p>
-									</div>
-								))}
-							</div>
-						)}
 					</section>
 				</div>
 			</div>

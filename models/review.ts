@@ -39,8 +39,15 @@ const reviewSchema = new Schema<IReview>(
     rating: {
       type: Number,
       required: true,
-      min: 1,
+      min: 0.5,
       max: 5,
+      validate: {
+        validator: function(v: number) {
+          // Only allow increments of 0.5 (0.5, 1, 1.5, 2, 2.5, etc.)
+          return (v * 2) % 1 === 0;
+        },
+        message: 'Rating must be in increments of 0.5'
+      }
     },
     comment: {
       type: String,

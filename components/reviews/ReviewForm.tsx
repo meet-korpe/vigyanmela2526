@@ -49,7 +49,7 @@ export default function ReviewForm({
     }
 
     // Validation
-    if (rating === 0) {
+    if (rating < 0.5) {
       setError("Please select a rating");
       return;
     }

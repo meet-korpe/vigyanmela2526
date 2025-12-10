@@ -3,7 +3,7 @@ import Dbconns from "@/dbconfig/dbconn";
 import CollegeStudent from "@/models/collegeStudent";
 import Review from "@/models/review";
 import { notFound } from "next/navigation";
-import ReviewForm from "@/components/reviews/ReviewForm";
+import ReviewsList from "@/components/reviews/ReviewsList";
 import StarRating from "@/components/reviews/StarRating";
 
 type Props = {
@@ -46,8 +46,14 @@ export default async function ProjectDetailPage({ params }: Props) {
   }
 
   const reviewsSafe = (reviews || []).map((r: any) => ({
-    ...r,
     _id: r._id?.toString?.() ?? r._id,
+    projectId: r.projectId?.toString?.() ?? r.projectId,
+    reviewerName: r.reviewerName,
+    reviewerEmail: r.reviewerEmail,
+    reviewerLinkedIn: r.reviewerLinkedIn,
+    rating: r.rating,
+    comment: r.comment,
+    hidden: r.hidden,
     createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : r.createdAt,
     updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : r.updatedAt,
   }));
@@ -83,33 +89,12 @@ export default async function ProjectDetailPage({ params }: Props) {
             <p className="leading-relaxed text-gray-800 dark:text-gray-200">{projectAny.projectSummary}</p>
           </section>
 
-          <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Reviews</h2>
-
-            <div className="space-y-4">
-              {reviewsSafe.length === 0 && (
-                <div className="text-gray-700 dark:text-gray-300">No reviews yet. Be the first to review this project!</div>
-              )}
-
-              {reviewsSafe.map((r: any) => (
-                <div key={r._id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">{r.reviewerName}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(r.createdAt).toLocaleString()}</p>
-                    </div>
-                    <div className="text-yellow-500 font-semibold">{r.rating} / 5</div>
-                  </div>
-                  <p className="mt-2 text-gray-700 dark:text-gray-200">{r.comment}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Leave a Review</h2>
-            <ReviewForm projectId={projectAny._id.toString()} projectName={projectAny.teamName} loginReturnUrl={`/projects/${projectAny.uuid ?? projectAny._id}`} />
-          </section>
+          <ReviewsList
+            projectId={projectAny._id.toString()}
+            projectName={projectAny.teamName}
+            initialReviews={reviewsSafe}
+            loginReturnUrl={`/projects/${projectAny.uuid ?? projectAny._id}`}
+          />
         </div>
 
         <aside className="md:col-span-1">
