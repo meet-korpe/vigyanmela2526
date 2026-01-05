@@ -51,7 +51,7 @@ Create `.env.local` in the project root.
 | CLOUDINARY_API_KEY | Yes | Cloudinary API key. |
 | CLOUDINARY_API_SECRET | Yes | Cloudinary API secret. |
 | RESEND_API_KEY | Optional | Enables email delivery for tickets/password resets. |
-| RESEND_FROM | Optional | From address for Resend (e.g., placements@chetanacollege.in). |
+| RESEND_FROM | Optional | From address for Resend (e.g., xyz@example.com). |
 
 ## Project Structure (high level)
 - app/ – App Router pages and API routes (registration, auth, admin, uploads).
