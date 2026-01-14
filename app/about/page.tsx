@@ -49,6 +49,19 @@ const images = [
   "/images/G43.jpg",
   "/images/G44.jpg",
   "/images/G45.png",
+  // "/images/1.HEIC",
+  // "/images/2.HEIC",
+  // "/images/3.HEIC",
+  // "/images/4.HEIC",   
+  // "/images/5.HEIC",
+  // "/images/6.HEIC",
+  "/images/7.jpg",
+  "/images/8.jpg",
+  "/images/9.jpg",
+  "/images/10.jpg", 
+  "/images/11.jpg",
+  "/images/12.jpg",
+  "/images/13.jpg",
 ];
 
 const teamMembers = [
