@@ -56,7 +56,7 @@ const teamMembers = [
     quote:
       "Leading the charge to make Vigyan Mela an unforgettable celebration of science and innovation for everyone.",
     name: "Mayuresh Chaubal",
-    designation: "Vigyan Mela Head",
+    designation: "Vigyan Mela Head 25-26",
     src: "/images/Mayuresh.jpg",
     link: "https://www.linkedin.com/in/mayuresh-chaubal/",
   },
@@ -64,7 +64,7 @@ const teamMembers = [
     quote:
       "Crafting the digital experience and ensuring all our tech runs smoothly, from registration to live demos.",
     name: "Noorjahan Charania",
-    designation: "Vigyan Mela Head",
+    designation: "Vigyan Mela Head 25-26",
     src: "/images/noor.jpg",
     link: "https://www.linkedin.com/in/noorjahan-charania-95bb8631a",
   },
@@ -83,6 +83,14 @@ const teamMembers = [
     designation: "Core Contributors",
     src: "images/Meet.jpg",
     link: "https://www.linkedin.com/in/meet-korpe/",
+  },
+  {
+    quote:
+      "Designing the look and feel of the event, ensuring every poster, stage, and screen inspires creativity.",
+    name: "Sahil Mane",
+    designation: "Core Technical Mentor-Alumni",
+    src: "images/Sahil.png",
+    link: "https://www.linkedin.com/in/sahil-mane-003a0924b/",
   },
   {
     quote:
