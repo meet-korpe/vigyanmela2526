@@ -61,6 +61,36 @@ const images = [
   "/images/10.jpg", 
   "/images/11.jpg",
   "/images/12.jpg",
+  "/images/13.jpg", 
+  "/images/14.jpg",
+  "/images/15.jpg", 
+  "/images/16.jpg",
+  "/images/17.jpg",
+  "/images/18.jpg",
+  "/images/19.jpg",
+  "/images/20.jpg",
+  "/images/21.jpg",
+  "/images/22.jpg",
+  "/images/23.jpg",
+  "/images/24.jpg",
+  "/images/25.jpg",
+  "/images/26.jpg",
+  "/images/27.jpg",
+  "/images/28.jpg",
+  "/images/29.jpg",
+  "/images/30.jpg",
+  "/images/31.jpg",
+  "/images/32.jpg",
+  "/images/33.jpg",
+  "/images/34.jpg",
+  "/images/35.jpg", 
+  "/images/36.jpg",
+  "/images/37.jpg",
+  { src: "/images/38.jpg", href: "https://www.linkedin.com/posts/vishnuraj-vishwakarma_vigyanmela-chetanacollege-studentinnovation-activity-7414836999263854592-S64b?utm_source=social_share_send&utm_medium=member_desktop_web&rcm=ACoAAFD52dcBgmnnVsXjY0p7mkzbgMWwsjBn42k" },
+  "/images/39.jpg",
+  "/images/40.jpg",
+  "/images/41.jpg",
+  "/images/42.jpg",
 ];
 
 const teamMembers = [
@@ -271,7 +301,7 @@ export default function About() {
             onClick={(e) => e.stopPropagation()} // Prevents closing when clicking the image area
           >
             <img 
-              src={images[currentImageIndex]} 
+              src={typeof images[currentImageIndex] === 'string' ? images[currentImageIndex] : images[currentImageIndex].src} 
               alt="Gallery preview" 
               className="max-h-[85vh] max-w-[90vw] object-contain shadow-2xl rounded-md select-none"
             />

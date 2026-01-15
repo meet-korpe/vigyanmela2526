@@ -10,7 +10,7 @@ export const ParallaxScrollSecond = ({
   className,
   onImageClick, // 1. Accept the prop
 }: {
-  images: string[];
+  images: Array<string | { src: string; href?: string }>;
   className?: string;
   onImageClick?: (url: string) => void; // 2. Define the type
 }) => {
@@ -40,43 +40,82 @@ export const ParallaxScrollSecond = ({
         ref={gridRef}
       >
         <div className="grid gap-10">
-          {firstPart.map((el, idx) => (
-            <motion.div style={{ y: translateFirst }} key={"grid-1" + idx}>
-              <img
-                src={el}
-                className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90" 
-                alt="thumbnail"
-                // 3. Add the click event here, passing the URL 'el'
-                onClick={() => onImageClick && onImageClick(el)}
-              />
-            </motion.div>
-          ))}
+          {firstPart.map((el, idx) => {
+            const src = typeof el === "string" ? el : el.src;
+            const href = typeof el === "string" ? undefined : el.href;
+            return (
+              <motion.div style={{ y: translateFirst }} key={"grid-1" + idx}>
+                {href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={src}
+                      className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
+                      alt="thumbnail"
+                    />
+                  </a>
+                ) : (
+                  <img
+                    src={src}
+                    className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
+                    alt="thumbnail"
+                    onClick={() => onImageClick && onImageClick(src)}
+                  />
+                )}
+              </motion.div>
+            );
+          })}
         </div>
         <div className="grid gap-10">
-          {secondPart.map((el, idx) => (
-            <motion.div style={{ y: translateSecond }} key={"grid-2" + idx}>
-              <img
-                src={el}
-                className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
-                alt="thumbnail"
-                // 3. Add the click event here
-                onClick={() => onImageClick && onImageClick(el)}
-              />
-            </motion.div>
-          ))}
+          {secondPart.map((el, idx) => {
+            const src = typeof el === "string" ? el : el.src;
+            const href = typeof el === "string" ? undefined : el.href;
+            return (
+              <motion.div style={{ y: translateSecond }} key={"grid-2" + idx}>
+                {href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={src}
+                      className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
+                      alt="thumbnail"
+                    />
+                  </a>
+                ) : (
+                  <img
+                    src={src}
+                    className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
+                    alt="thumbnail"
+                    onClick={() => onImageClick && onImageClick(src)}
+                  />
+                )}
+              </motion.div>
+            );
+          })}
         </div>
         <div className="grid gap-10">
-          {thirdPart.map((el, idx) => (
-            <motion.div style={{ y: translateThird }} key={"grid-3" + idx}>
-              <img
-                src={el}
-                className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
-                alt="thumbnail"
-                // 3. Add the click event here
-                onClick={() => onImageClick && onImageClick(el)}
-              />
-            </motion.div>
-          ))}
+          {thirdPart.map((el, idx) => {
+            const src = typeof el === "string" ? el : el.src;
+            const href = typeof el === "string" ? undefined : el.href;
+            return (
+              <motion.div style={{ y: translateThird }} key={"grid-3" + idx}>
+                {href ? (
+                  <a href={href} target="_blank" rel="noopener noreferrer">
+                    <img
+                      src={src}
+                      className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
+                      alt="thumbnail"
+                    />
+                  </a>
+                ) : (
+                  <img
+                    src={src}
+                    className="h-80 w-full object-cover object-left-top rounded-lg gap-10 !m-0 !p-0 cursor-pointer transition hover:opacity-90"
+                    alt="thumbnail"
+                    onClick={() => onImageClick && onImageClick(src)}
+                  />
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </div>
